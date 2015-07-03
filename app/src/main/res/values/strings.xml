@@ -15,4 +15,6 @@
     <string name="invalid_lat_long_used">Lat/long are invalid</string>
     <string name="no_address_found">No address found</string>
     <string name="address_found">Address found!! :)</string>
+    <string name="show">Show</string>
+    <string name="drop">Drop Table</string>
 </resources>

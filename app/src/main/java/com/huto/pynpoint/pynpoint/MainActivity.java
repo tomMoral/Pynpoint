@@ -1,6 +1,7 @@
 package com.huto.pynpoint.pynpoint;
 
 import java.util.Calendar;
+import java.util.List;
 import java.util.Locale;
 
 import android.content.ContentValues;
@@ -8,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
 import android.location.Location;
 import android.os.Handler;
 import android.os.ResultReceiver;
@@ -27,9 +29,12 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
+import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.CursorAdapter;
 import android.widget.ListView;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -37,7 +42,9 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.GoogleApiClient.ConnectionCallbacks;
 import com.google.android.gms.common.api.GoogleApiClient.OnConnectionFailedListener;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -68,11 +75,13 @@ public class MainActivity extends FragmentActivity implements
     private String mAddressOutput = null;
     private TextView Output;
     private boolean recording = false;
+    private GoogleMap mMap;
 
 
+
+    static long selected = -1;
     static private DbPynpoint local_db;
     static private MainActivity main;
-    static private GoogleMap mMap;
     static boolean googleApiConnected = false;
 
 
@@ -94,12 +103,14 @@ public class MainActivity extends FragmentActivity implements
         buildGoogleApiClient();
 
     }
-    public boolean onCreateOptionsMenu(Menu menu) {
+    public boolean onCreateOptionsMenu(Menu menu)
+    {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
-    public boolean onOptionsItemSelected(MenuItem item) {
+    public boolean onOptionsItemSelected(MenuItem item)
+    {
         // Handle action bar item clicks here. The action bar will
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
@@ -112,7 +123,8 @@ public class MainActivity extends FragmentActivity implements
 
         return super.onOptionsItemSelected(item);
     }
-    private void displayInfo(String msg){
+    private void displayInfo(String msg)
+    {
         if (Output == null){
             Log.i("Display", "Is null, recreate");
             Output = (TextView) findViewById(R.id.textView);
@@ -131,21 +143,59 @@ public class MainActivity extends FragmentActivity implements
         }
         public void run() {
             displayInfo(updateString);
+            showEntries(null);
         }
     }
-    //Record position Button
-    public void buttonRecord(View view) {
 
-        Log.i("Button", "Click");
+    public void testFun(View view) {
+        if(getMap()){
+
+            getLocation();
+            LatLng me = new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude());
+            mMap.setMyLocationEnabled(true);
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(me, 13));
+            SQLiteDatabase db = local_db.getReadableDatabase();
+            String[] projection = {
+                    LocationRecord.Record._ID,
+                    LocationRecord.Record.COLUMN_NAME_LATITUDE,
+                    LocationRecord.Record.COLUMN_NAME_LONGITUDE
+            };
+            Cursor c = db.query(
+                    LocationRecord.TABLE_NAME,
+                    projection, null, null,
+                    null, null, null);
+            c.moveToFirst();
+            while(!c.isAfterLast()){
+                float lat = c.getFloat(c.getColumnIndex(LocationRecord.Record.COLUMN_NAME_LATITUDE));
+                float lon = c.getFloat(c.getColumnIndex(LocationRecord.Record.COLUMN_NAME_LONGITUDE));
+                mMap.addMarker(new MarkerOptions().position(new LatLng(lat, lon)).title("Marker"));
+                c.moveToNext();
+            }
+
+        }
+    }
+
+    public boolean getMap(){
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_container);
+        if(mapFragment != null) {
+            mMap = mapFragment.getMap();
+            Log.i("Map", "mMap is dead? "+ String.valueOf(mMap == null));
+            return (mMap != null);
+        }
+        Log.i("Map", "mapFragment is dead");
+        return false;
+    }
+
+    //Record position Button
+    public void buttonRecord(View view)
+    {
+
         if(!googleApiConnected) {
             displayInfo("Google Api not connected");
         }
         else{
             if(!recording) {
-                mLastLocation = LocationServices.FusedLocationApi.getLastLocation(
-                        mGoogleApiClient);
-                Log.i("Oupsi", String.valueOf(mLastLocation.getTime()));
-                Log.i("Oupsi", String.valueOf(mLastLocation.getLongitude()));
+                getLocation();
                 Intent intent = new Intent(this, FetchAddressIntentService.class);
                 intent.putExtra(Constants.RECEIVER, mResultReceiver);
                 intent.putExtra(Constants.LOCATION_DATA_EXTRA, mLastLocation);
@@ -158,13 +208,39 @@ public class MainActivity extends FragmentActivity implements
             }
         }
     }
+    public void getLocation(){
+        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(
+                mGoogleApiClient);
+    }
 
-    public void showBtn(View view){
-        ListView lv = (ListView) findViewById(R.id.listView);
+    //Show button
+    public void showBtn(View view)
+    {
+        ListView lv = (ListView) findViewById(R.id.LVshow);
         showEntries(lv);
     }
 
+
+    public void rmEntry(View view) {
+        ListView lv = (ListView) findViewById(R.id.LVshow);
+        lv.getSelectedItemId();
+        int id = lv.getSelectedItemPosition();
+        Log.d("Remove", "List id: "+String.valueOf(selected));
+        SQLiteDatabase db = local_db.getWritableDatabase();
+        String where = LocationRecord.Record._ID + "=" + String.valueOf(selected);
+        int c = db.delete(
+                LocationRecord.TABLE_NAME,
+                where, null);
+        Log.d("Remove", String.valueOf(c));
+        showEntries(lv);
+        selected = -1;
+    }
+
+
+    // Show DB in the provided list view
     static public void showEntries(ListView lv){
+        if (lv == null)
+            lv = (ListView) main.findViewById(R.id.LVshow);
         SQLiteDatabase db = local_db.getReadableDatabase();
         String[] projection = {
                 LocationRecord.Record._ID,
@@ -201,13 +277,64 @@ public class MainActivity extends FragmentActivity implements
                 tvId.setText(String.valueOf(rid));
                 tvTime.setText(time);
             }
+
         };
         lv.setAdapter(ca);
+
+        lv.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+                view.setSelected(true);
+
+                Log.d("List click", String.valueOf(id));
+                ListView lv = (ListView) parent.findViewById(R.id.LVshow);
+
+                lv.setItemChecked(position, true);
+                Log.d("Check stuff", String.valueOf(lv.getCheckedItemCount()));
+                selected = id;
+                return  false;
+            }
+        });
+        lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                showOnMap(id);
+            }
+        });
     }
 
-    public void dropTable(View view){
+    static public void showOnMap(long id){
+
+        if(main.getMap()){
+
+            SQLiteDatabase db = local_db.getReadableDatabase();
+            String[] projection = {
+                    LocationRecord.Record._ID,
+                    LocationRecord.Record.COLUMN_NAME_LATITUDE,
+                    LocationRecord.Record.COLUMN_NAME_LONGITUDE,
+                    LocationRecord.Record.COLUMN_NAME_ADDRESS
+            };
+            String where = LocationRecord.Record._ID+ "="+String.valueOf(id);
+            Cursor c = db.query(
+                    LocationRecord.TABLE_NAME,
+                    projection,
+                    where, null,null, null, null);
+            c.moveToFirst();
+            float lat = c.getFloat(c.getColumnIndex(LocationRecord.Record.COLUMN_NAME_LATITUDE));
+            float lon = c.getFloat(c.getColumnIndex(LocationRecord.Record.COLUMN_NAME_LONGITUDE));
+            String address = c.getString(c.getColumnIndex(LocationRecord.Record.COLUMN_NAME_ADDRESS));
+            LatLng pos = new LatLng(lat, lon);
+            main.mMap.addMarker(new MarkerOptions().position(pos).title(address));
+            main.mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(pos, 13));
+            }
+    }
+
+    //Drop the table
+    public void dropTable(View view)
+    {
         SQLiteDatabase db = local_db.getReadableDatabase();
         local_db.resetTable(db);
+        showBtn(view);
     }
 
     /*********************************************
@@ -242,11 +369,11 @@ public class MainActivity extends FragmentActivity implements
         }
         //Return the page position
         public Fragment getItem(int position) {
-            return PlaceholderFragment.newInstance(position + 1);
+            return PlaceholderFragment.newInstance(position);
         }
         // Number of pages
         public int getCount() {
-            return 3;
+            return 2;
         }
 
         //Give the page title
@@ -257,8 +384,6 @@ public class MainActivity extends FragmentActivity implements
                     return getString(R.string.title_section1).toUpperCase(l);
                 case 1:
                     return getString(R.string.title_section2).toUpperCase(l);
-                case 2:
-                    return getString(R.string.title_section3).toUpperCase(l);
             }
             return null;
         }
@@ -267,19 +392,26 @@ public class MainActivity extends FragmentActivity implements
      * A placeholder fragment containing a simple view.
      */
     public static class PlaceholderFragment extends Fragment {
+        int section_number;
         //Constant
         private static final String ARG_SECTION_NUMBER = "section_number";
+        //Empty constructor
+        public PlaceholderFragment() {}
         //Create a new page for the section number
         public static PlaceholderFragment newInstance(int sectionNumber) {
             PlaceholderFragment fragment = new PlaceholderFragment();
             Bundle args = new Bundle();
             args.putInt(ARG_SECTION_NUMBER, sectionNumber);
-            Log.i("Fragment", String.valueOf(sectionNumber));
             fragment.setArguments(args);
             return fragment;
         }
-        //Empty constructor
-        public PlaceholderFragment() {}
+
+        public void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            section_number = getArguments() != null ? getArguments().getInt(ARG_SECTION_NUMBER) : 1;
+        }
+
+
         //Inflate the active layout for the given fram
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
@@ -287,47 +419,24 @@ public class MainActivity extends FragmentActivity implements
             int sectionNumber = args.getInt(ARG_SECTION_NUMBER);
             //Display map in first page
             if (sectionNumber == 1){
-                super.onCreate(savedInstanceState);
-                setContentView(R.layout.activity_maps);
-                View rootView = inflater.inflate(R.layout.activity_maps, container, false);
-                SupportMapFragment map = (SupportMapFragment) rootView.findViewById(R.id.map);
-                if(map ==null){
-                    Log.i("MAp??", "map is null");
+                View rootView = inflater.inflate(R.layout.empty_spot, container, false);
+                if (rootView.findViewById(R.id.fragment_container) != null) {
+                    if (savedInstanceState != null) {
+                        return rootView;
+                    }
+                    SupportMapFragment mapFragment = new SupportMapFragment();
+                    mapFragment.setArguments(main.getIntent().getExtras());
+                    main.getSupportFragmentManager().beginTransaction()
+                            .add(R.id.fragment_container, mapFragment).commit();
+                    Log.i("Fragment", "Setup map!!!");
                 }
-                else {
-                    setUpMapIfNeeded(map);
-                }
-                return rootView;
-            }
-            //Display recorder in second page
-            if (sectionNumber == 2){
-                View rootView = inflater.inflate(R.layout.fragment_main, container, false);
                 return rootView;
             }
             View rootView = inflater.inflate(R.layout.fragment_show, container, false);
-            ListView lv = (ListView) rootView.findViewById(R.id.LVshow);
-            showEntries(lv);
+            showEntries(null);
             return rootView;
 
         }
-
-        private void setUpMapIfNeeded(SupportMapFragment map) {
-            // Do a null check to confirm that we have not already instantiated the map.
-            if (mMap == null) {
-                // Try to obtain the map from the SupportMapFragment.
-                mMap = map.getMap();
-                // Check if we were successful in obtaining the map.
-                if (mMap != null) {
-                    setUpMap();
-                }
-            }
-        }
-
-        private void setUpMap() {
-            mMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Marker"));
-        }
-
-
     }
 
 
