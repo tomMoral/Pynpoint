@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.huto.pynpoint.pynpoint" >
+    package="com.huto.pynpoint" >
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -44,7 +44,7 @@
             android:label="@string/title_activity_maps" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value="com.huto.pynpoint.pynpoint.MainActivity" />
+                android:value="com.huto.pynpoint.MainActivity" />
         </activity>
     </application>
 

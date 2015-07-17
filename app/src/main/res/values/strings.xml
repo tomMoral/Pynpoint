@@ -17,4 +17,5 @@
     <string name="address_found">Address found!! :)</string>
     <string name="show">Show</string>
     <string name="drop">Drop Table</string>
+    <string name="google_maps_key">AIzaSyCBdaY7rrDfCGjbPYMaPDNDI8rXKcHeInU</string>
 </resources>
